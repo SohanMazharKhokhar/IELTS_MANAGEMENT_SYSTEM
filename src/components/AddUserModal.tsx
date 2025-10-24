@@ -1,24 +1,21 @@
-// src/components/AddUserModal.tsx - Updated
+// src/components/AddUserModal.tsx
 
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
-import { AppUser, AppUserRole } from '../types';
-import { UserCircleIcon, EmailIcon, LockIcon } from './icons'; // Assuming you have an icon for 'role' or can reuse one
+import { AppUser, AppUserRole } from '../../types';
+import { UserCircleIcon, EmailIcon, LockIcon } from './icons'; 
 
-// Form input type (reflects the fields we want to collect/edit)
+// Form input type (excluding generated fields)
 type UserFormInputs = Pick<AppUser, 'firstName' | 'lastName' | 'email' | 'password' | 'role' | 'referralCode'>;
 
 interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // If editing, this will be the user object; null/undefined for create
   editingUser: AppUser | undefined; 
-  
-  // The handler function now takes the full data and the user ID (if editing)
-  onSaveUser: (data: UserFormInputs, userId?: string) => Promise<boolean>; 
+  onAddUser: (data: any, userId?: string) => Promise<boolean>; 
 }
 
-const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser, onSaveUser }) => {
+const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUser, onAddUser }) => {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<UserFormInputs>({
     defaultValues: {
       firstName: '',
@@ -29,7 +26,6 @@ const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser
       referralCode: '',
     },
   });
-  
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const isEditing = !!editingUser;
 
@@ -37,18 +33,25 @@ const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser
     if (isOpen) {
       setSubmissionError(null);
       if (editingUser) {
-        // Populate form fields for editing
+        // --- LOAD DATA FOR EDITING ---
         reset({
           firstName: editingUser.firstName,
           lastName: editingUser.lastName,
           email: editingUser.email,
-          password: editingUser.password, // IMPORTANT: In a real app, never display/edit plain password!
-          role: editingUser.role,
+          password: editingUser.password,
+          role: editingUser.role, // Loads the existing role
           referralCode: editingUser.referralCode,
         });
       } else {
-        // Reset form for creating a new user
-        reset(); 
+        // --- RESET FOR CREATING NEW USER ---
+        reset({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          role: 'User',
+          referralCode: '',
+        }); 
       }
     }
   }, [isOpen, reset, editingUser]);
@@ -56,8 +59,8 @@ const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser
   const onSubmit: SubmitHandler<UserFormInputs> = async (data) => {
     setSubmissionError(null);
     
-    // Pass the data and the user ID (if editing) to the handler
-    const success = await onSaveUser(data, editingUser?.id); 
+    // Pass the entire 'data' object and the user ID to the parent handler
+    const success = await onAddUser(data, editingUser?.id); 
     
     if (success) {
       onClose();
@@ -74,6 +77,7 @@ const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+        {/* The entire form must wrap all fields */}
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="p-6 border-b">
             <h2 className="text-xl font-semibold text-gray-800">{isEditing ? 'Edit User' : 'Create New User'}</h2>
@@ -85,33 +89,62 @@ const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser
             {/* First Name */}
             <div>
               <label htmlFor="firstName" className={labelClasses}>First Name</label>
-              <input type="text" id="firstName" {...register('firstName', { required: 'First name is required' })} className={commonInputClasses} placeholder="John" />
+              <input
+                id="firstName"
+                type="text"
+                {...register('firstName', { required: 'First name is required' })}
+                className={commonInputClasses}
+                placeholder="John"
+              />
               {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName.message}</p>}
             </div>
 
             {/* Last Name */}
             <div>
               <label htmlFor="lastName" className={labelClasses}>Last Name</label>
-              <input type="text" id="lastName" {...register('lastName', { required: 'Last name is required' })} className={commonInputClasses} placeholder="Doe" />
+              <input
+                id="lastName"
+                type="text"
+                {...register('lastName', { required: 'Last name is required' })}
+                className={commonInputClasses}
+                placeholder="Doe"
+              />
               {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName.message}</p>}
             </div>
 
             {/* Email */}
             <div>
               <label htmlFor="email" className={labelClasses}>Email Address</label>
-              <input type="email" id="email" {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' } })} className={commonInputClasses} placeholder="user@example.com" />
+              <input
+                id="email"
+                type="email"
+                {...register('email', { 
+                  required: 'Email is required', 
+                  pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' } 
+                })}
+                className={commonInputClasses}
+                placeholder="user@example.com"
+              />
               {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
             </div>
 
             {/* Password */}
             <div>
               <label htmlFor="password" className={labelClasses}>Password</label>
-              <input type="password" id="password" {...register('password', { required: isEditing ? undefined : 'Password is required', minLength: { value: 6, message: 'Password must be at least 6 characters' } })} className={commonInputClasses} placeholder="••••••••" />
-              {/* Note: Password requirement can be optional when editing */}
+              <input
+                id="password"
+                type="password"
+                {...register('password', { 
+                  required: isEditing ? undefined : 'Password is required', 
+                  minLength: { value: 6, message: 'Password must be at least 6 characters' } 
+                })}
+                className={commonInputClasses}
+                placeholder="••••••••"
+              />
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
             </div>
 
-            {/* Role */}
+            {/* Role (Dropdown) */}
             <div>
               <label htmlFor="role" className={labelClasses}>Role</label>
               <select id="role" {...register('role', { required: true })} className={commonInputClasses}>
@@ -120,22 +153,31 @@ const AddUserModal: React.FC<AddUserModalProps>= ({ isOpen, onClose, editingUser
                 <option value="Admin">Admin</option>
               </select>
             </div>
-            
+
             {/* Conditional: Referral Code */}
-            {isEditing && ( // Only show when editing
+            {isEditing && (
                 <div>
                   <label htmlFor="referralCode" className={labelClasses}>Referral Code</label>
                   <input type="text" id="referralCode" {...register('referralCode')} className={commonInputClasses} placeholder="Optional referral code" />
                 </div>
             )}
-            
           </div>
 
           <div className="p-6 border-t bg-gray-50 flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+            {/* Cancel Button - MUST be type="button" */}
+            <button 
+                type="button" 
+                onClick={onClose} 
+                className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
               Cancel
             </button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white border border-transparent rounded-md hover:bg-blue-700">
+            
+            {/* Save Button - MUST be type="submit" */}
+            <button 
+                type="submit" 
+                className="px-4 py-2 bg-blue-600 text-white border border-transparent rounded-md hover:bg-blue-700"
+            >
               {isEditing ? 'Save Changes' : 'Create User'}
             </button>
           </div>

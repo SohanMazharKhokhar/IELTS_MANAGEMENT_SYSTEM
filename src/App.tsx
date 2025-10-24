@@ -1,4 +1,4 @@
-// src/App.tsx
+// src/App.tsx (Final Routing Logic)
 
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
@@ -7,19 +7,15 @@ import Dashboard from './pages/Dashboard';
 import ExercisesManagement from './pages/ExercisesManagement';
 import UsersManagement from './pages/UsersManagement';
 import LoginPage from './pages/LoginPage';
-import EditorTaskView from './pages/EditorTaskView'; // <-- NEW IMPORT
+import EditorTaskView from './pages/EditorTaskView';
 import { useAuth } from './hooks/useAuth';
 
 type Page = 'Dashboard' | 'Users Management' | 'Subscriptions' | 'Exercises Management';
 
 const LoggedInApp: React.FC = () => {
-  // ... (LoggedInApp component remains the same) ...
-  // This component is the Admin's full view
-  
   const [activePage, setActivePage] = useState<Page>('Dashboard');
 
   const renderContent = () => {
-    // ... (rest of renderContent logic remains the same) ...
     switch (activePage) {
       case 'Dashboard':
         return <Dashboard />;
@@ -53,24 +49,43 @@ const LoggedInApp: React.FC = () => {
 const App: React.FC = () => {
     const { currentUser } = useAuth();
     
-    // --- NEW ROLE CHECK LOGIC ---
     if (!currentUser) {
         return <LoginPage />;
     }
+    
+    const userEmail = currentUser.email;
 
-    // Determine role based on email for routing
-    const isAdmin = currentUser.email.includes('admin@ielts.com') || currentUser.email.includes('maria@ielts.com');
-    const isEditor = currentUser.email.includes('editor@ielts.com') || currentUser.email.includes('readedit');
+    // --- FULL ADMINS (See Sidebar and Management) ---
+    // Includes Ahmad, Maria, John Smith, Emily Clark
+    const fullAdminEmails = [
+        'admin@ielts.com', 
+        'maria@ielts.com', 
+        'john.smith@ielts.com', 
+        'emily.clark@ielts.com'
+    ];
+    
+    // --- TASK EDITORS / SPECIALISTS (See Editor View/Solving Page) ---
+    // Includes Alex, David, Robert, Marketing, QA, Support, and general test users
+    const taskEditorEmails = [
+        'editor@ielts.com', 'david.lee@ielts.com', 'robert.g@ielts.com', 
+        'laura.m@ielts.com', 'kevin.h@ielts.com', 'olivia.s@ielts.com',
+        'daniel.k@ielts.com', 'grace.w@ielts.com', 
+        'ryan.a@ielts.com', 'chloe.b@ielts.com',
+    ];
 
-    if (isAdmin) {
-        // Full Admin Portal view
+    const isFullAdmin = fullAdminEmails.includes(userEmail);
+    const isTaskEditor = taskEditorEmails.includes(userEmail);
+
+    if (isFullAdmin) {
+        // Ahmad, Maria, John, Emily see the full admin interface
         return <LoggedInApp />;
-    } else if (isEditor) {
-        // Simplified Editor/Task View
+    } else if (isTaskEditor) {
+        // Alex, David, Robert, etc., see the simplified task solving page
         return <EditorTaskView />;
     }
     
-    // Default fallback for any other logged-in user (e.g., support staff)
+    // FALLBACK: If a user somehow logged in but isn't explicitly classified, 
+    // default them to the full admin page for control.
     return <LoggedInApp />; 
 }
 

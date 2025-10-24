@@ -1,4 +1,4 @@
-// src/pages/ExercisesManagement.tsx (Final Version for Persistence)
+// src/pages/ExercisesManagement.tsx (Modified for Task Editing)
 
 import React, { useState, useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
@@ -24,11 +24,11 @@ const getInitialExercises = (): Exercise[] => {
 const ExercisesManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTasks, setCurrentTasks] = useState<Task[]>([]);
-  
-  // Initialize state using the helper function
   const [savedExercises, setSavedExercises] = useState<Exercise[]>(getInitialExercises); 
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   
-  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null); 
+  // NEW STATE: To track which task is currently being edited
+  const [editingTask, setEditingTask] = useState<Task | null>(null); 
 
   const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<ExerciseFormInputs>({
     defaultValues: {
@@ -41,6 +41,38 @@ const ExercisesManagement: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(savedExercises));
   }, [savedExercises]);
+
+  // --- TASK MANAGEMENT HANDLERS ---
+  
+  const handleOpenTaskModal = (taskToEdit: Task | null) => {
+    setEditingTask(taskToEdit);
+    setIsModalOpen(true);
+  }
+
+  const handleCloseTaskModal = () => {
+    setEditingTask(null);
+    setIsModalOpen(false);
+  }
+
+  // MODIFIED HANDLER to save or update task in the currentTasks array
+  const handleSaveTask = (taskData: Task, originalTaskId: string | null) => {
+    if (originalTaskId) {
+        // EDIT TASK: Find and replace the task in the currentTasks array
+        setCurrentTasks(prev => prev.map(t => 
+            t.id === originalTaskId ? taskData : t
+        ));
+    } else {
+        // ADD NEW TASK
+        setCurrentTasks(prev => [...prev, taskData]);
+    }
+    // Note: The main exercise save button must be clicked to make these changes permanent.
+  };
+
+  const handleRemoveTask = (taskId: string) => {
+    setCurrentTasks(prev => prev.filter(task => task.id !== taskId));
+  };
+  
+  // --- EXERCISE MANAGEMENT HANDLERS ---
 
   const handleLoadExercise = (exercise: Exercise) => {
     // 1. Set the form fields (Exercise Details)
@@ -93,14 +125,6 @@ const ExercisesManagement: React.FC = () => {
     }
     
     setEditingExerciseId(null); 
-  };
-
-  const handleAddTask = (task: Task) => {
-    setCurrentTasks(prev => [...prev, task]);
-  };
-
-  const handleRemoveTask = (taskId: string) => {
-    setCurrentTasks(prev => prev.filter(task => task.id !== taskId));
   };
   
   const handleDeleteExercise = (exerciseId: string, title: string) => {
@@ -194,7 +218,7 @@ const ExercisesManagement: React.FC = () => {
           <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Tasks</h2>
-              <button onClick={() => setIsModalOpen(true)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+              <button type="button" onClick={() => handleOpenTaskModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
                 <PlusIcon className="mr-2" />
                 Add New Task
               </button>
@@ -206,9 +230,19 @@ const ExercisesManagement: React.FC = () => {
                     <p className="font-semibold text-gray-700">{index + 1}. {task.title}</p>
                     <p className="text-sm text-gray-500">Type: {task.taskType}</p>
                   </div>
-                  <button onClick={() => handleRemoveTask(task.id)} className="text-red-500 hover:text-red-700">
-                    <TrashIcon className="w-5 h-5"/>
-                  </button>
+                  {/* ADDED EDIT BUTTON for Task */}
+                  <div className="flex space-x-2">
+                        <button 
+                            type="button"
+                            onClick={() => handleOpenTaskModal(task)}
+                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                        >
+                            Edit
+                        </button>
+                        <button type="button" onClick={() => handleRemoveTask(task.id)} className="text-red-500 hover:text-red-700">
+                          <TrashIcon className="w-5 h-5"/>
+                        </button>
+                  </div>
                 </div>
               )) : <p className="text-center text-gray-500 py-4">No tasks added yet.</p>}
             </div>
@@ -251,8 +285,9 @@ const ExercisesManagement: React.FC = () => {
       
       <AddTaskModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAddTask={handleAddTask}
+        onClose={handleCloseTaskModal} // Use the new close handler
+        editingTask={editingTask} // Pass the task to edit
+        onSaveTask={handleSaveTask} // Use the new save/edit handler
       />
     </>
   );

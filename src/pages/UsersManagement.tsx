@@ -1,95 +1,137 @@
-// src/pages/UsersManagement.tsx - Updated
+// src/pages/UsersManagement.tsx (Final Version with Role Edit Fix)
 
 import React, { useState, useEffect } from 'react';
-import { AppUser } from '../types';
+import { AppUser, User } from '../types';
 import AddUserModal from '../components/AddUserModal';
 import { PlusIcon, TrashIcon } from '../components/icons';
-import { UserFormInputs } from '../components/AddUserModal'; // Import the form types
+// --- IMPORT ADMIN USERS from useAuth.tsx ---
+import { adminUsers } from '../hooks/useAuth'; 
+// ------------------------------------------
+
+// --- HELPER TO CONVERT ADMIN USERS TO APP USERS ---
+const convertAdminToAppUser = (user: User): AppUser => {
+    // Splits the name (e.g., 'Ahmad (Super Admin)')
+    const parts = user.name.split(' ');
+    const firstName = parts[0];
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : 'Admin';
+
+    let role: AppUser['role'] = 'User';
+    if (user.email.includes('admin') || user.name.includes('Super')) {
+        role = 'Admin';
+    } else if (user.name.includes('Editor') || user.name.includes('Specialist')) {
+        role = 'Editor';
+    }
+
+    return {
+        id: user.id,
+        firstName: firstName,
+        lastName: lastName,
+        email: user.email,
+        password: user.password,
+        role: role,
+        referralCode: `ADMIN-${user.id}`,
+        discounted: true,
+        referredBy: 'System',
+        createdBy: 'System',
+        createdAt: new Date().toISOString(),
+    };
+};
+// -----------------------------------------------------------------------------------
 
 const USERS_STORAGE_KEY = 'ielts_app_users';
-const CURRENT_ADMIN_USER_ID = '1'; // Placeholder for the currently logged-in admin user ID
+const CURRENT_ADMIN_USER_ID = '1'; 
 
-// Helper function to get users from localStorage
 const getInitialUsers = (): AppUser[] => {
   const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-  return storedUsers ? JSON.parse(storedUsers) : [];
+  if (storedUsers) {
+    // TEMPORARY OVERRIDE REMOVED, RESTORED TO PERSISTENCE LOGIC
+    // NOTE: If you still see the old list, clear browser Local Storage for ielts_app_users
+    return JSON.parse(storedUsers); 
+  }
+  
+  // Initialize with admin users if localStorage is empty
+  const initialAppUsers = adminUsers.map(convertAdminToAppUser);
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialAppUsers));
+  return initialAppUsers;
 };
+
 
 const UsersManagement: React.FC = () => {
   const [users, setUsers] = useState<AppUser[]>(getInitialUsers);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AppUser | undefined>(undefined); // NEW state for editing
+  const [editingUser, setEditingUser] = useState<AppUser | undefined>(undefined); 
 
-  // Effect to save users to localStorage whenever the 'users' state changes
+  // EFFECT to save to localStorage whenever users state changes (Persistence)
   useEffect(() => {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
   }, [users]);
   
-  // Handlers for Modal
-  const handleCreateClick = () => {
-    setEditingUser(undefined); // Set to undefined for Create action
-    setIsModalOpen(true);
-  };
-
-  const handleEditClick = (user: AppUser) => {
-    setEditingUser(user); // Set the user to edit
-    setIsModalOpen(true);
-  };
-  
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingUser(undefined); // Clear editing state
-  };
-
-  // Handler to create or update a user
-  const handleSaveUser = async (
-    data: UserFormInputs,
-    userId?: string
-  ): Promise<boolean> => {
-    // Check for duplicate email, excluding the user being edited
+  // --- MODIFIED handleSaveUser to explicitly use form data for update ---
+  const handleSaveUser = async (data: any, userId?: string): Promise<boolean> => {
     if (users.some(u => u.email === data.email && u.id !== userId)) {
-      return false; // Indicate failure (email already exists)
+      return false; // Email already exists
     }
 
     if (userId) {
-      // Logic for EDITING
+      // EDIT existing user - Explicitly mapping all required fields from form 'data'
       setUsers(prevUsers => prevUsers.map(u => 
         u.id === userId 
           ? { 
               ...u, 
-              ...data,
+              // Fields updated from modal's data object
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email,
+              password: data.password, 
+              role: data.role, // <--- CRITICAL: Ensures the selected role is used
+              referralCode: data.referralCode,
+              
+              // Auditing
               editedAt: new Date().toISOString(),
               editedBy: CURRENT_ADMIN_USER_ID,
             } 
           : u
       ));
     } else {
-      // Logic for CREATING NEW USER (with default values for new fields)
+      // CREATE new user
       const newUser: AppUser = {
         ...data,
         id: new Date().toISOString(),
-        referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(), // Generate random code
-        referredBy: undefined, 
+        referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
         discounted: false,
-        createdBy: CURRENT_ADMIN_USER_ID, // Use the current admin user's ID
+        referredBy: undefined,
+        createdBy: CURRENT_ADMIN_USER_ID,
         createdAt: new Date().toISOString(),
-        // Auditing fields start empty
-        editedBy: undefined,
-        editedAt: undefined,
-        deletedBy: undefined,
-        deletedAt: undefined,
       };
-
       setUsers(prevUsers => [...prevUsers, newUser]);
     }
-    return true; // Indicate success
+    return true;
   };
+  // ----------------------------------------------------------------------
 
   const handleRemoveUser = (userId: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       setUsers(prevUsers => prevUsers.filter(u => u.id !== userId));
     }
   };
+  
+  const handleCreateClick = () => {
+    setEditingUser(undefined); 
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (user: AppUser) => {
+    setEditingUser(user); 
+    setIsModalOpen(true);
+  };
+  
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(undefined); 
+  };
+  
+  const commonInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
+  const labelClasses = "block text-sm font-medium text-gray-700";
 
   return (
     <>
@@ -99,7 +141,7 @@ const UsersManagement: React.FC = () => {
           <p className="text-gray-500 mt-1">Create and manage your app's users.</p>
         </div>
         <button
-          onClick={handleCreateClick} // Use the new handler
+          onClick={handleCreateClick} 
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
           <PlusIcon className="mr-2" />
@@ -107,22 +149,16 @@ const UsersManagement: React.FC = () => {
         </button>
       </div>
 
-      {/* User List Table */}
       <div className="bg-white shadow-md rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {/* PRIMARY COLUMNS */}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name / Email</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-              
-              {/* NEW COLUMNS */}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral Code</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referred By</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discounted</th>
-              
-              {/* AUDIT COLUMNS - Condensed to avoid massive table */}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
 
               <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
@@ -146,7 +182,6 @@ const UsersManagement: React.FC = () => {
                   </span>
                 </td>
                 
-                {/* NEW DATA CELLS */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.referralCode}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.referredBy || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -155,7 +190,6 @@ const UsersManagement: React.FC = () => {
                     </span>
                 </td>
 
-                {/* CREATED AT */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(user.createdAt).toLocaleDateString()}
                 </td>
@@ -185,12 +219,11 @@ const UsersManagement: React.FC = () => {
           </tbody>
         </table>
       </div>
-
       <AddUserModal
         isOpen={isModalOpen}
-        onClose={handleCloseModal} // Use the new handler
-        editingUser={editingUser} // Pass the user being edited
-        onSaveUser={handleSaveUser} // Use the combined save handler
+        onClose={handleCloseModal}
+        editingUser={editingUser}
+        onAddUser={handleSaveUser as any}
       />
     </>
   );

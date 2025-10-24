@@ -1,10 +1,11 @@
-// This is your new, simplified useAuth.tsx
+// src/hooks/useAuth.tsx - Add export to adminUsers
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { User } from '../types';
 
 // This is now your "JSON file". Only users in this list can log in.
-const adminUsers: User[] = [
+// --- ADD 'export' HERE ---
+export const adminUsers: User[] = [
   // --- Core Admins ---
   { id: '1', name: 'Ahmad (Super Admin)', email: 'admin@ielts.com', password: 'password123' },
   { id: '2', name: 'Maria Sanchez (Admin)', email: 'maria@ielts.com', password: 'password789' },
@@ -29,7 +30,6 @@ const adminUsers: User[] = [
   { id: '16', name: 'Ryan Adams', email: 'ryan.a@ielts.com', password: 'testuser1' },
   { id: '17', name: 'Chloe Baker', email: 'chloe.b@ielts.com', password: 'testuser2' }
 ];
-
 const CURRENT_USER_STORAGE_KEY = 'ielts_admin_current_user';
 
 const getCurrentUserFromStorage = (): User | null => {
