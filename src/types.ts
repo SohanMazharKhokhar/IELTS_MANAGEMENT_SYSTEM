@@ -1,44 +1,47 @@
-// src/types.ts - Complete and Unified
+// src/types.ts
 
 // ===================================
-// USER TYPES
+// AUTH/ADMIN USER TYPE
 // ===================================
 
-export interface User { // This is the admin portal user (used by useAuth)
+export interface User { 
   id: string;
   name: string;
   email: string;
-  password: string; // In a real app, this should be a hash.
+  password: string; 
 }
 
-export type AppUserRole = 'Admin' | 'Editor' | 'User'; // Roles for the application users
+// ===================================
+// APPLICATION USER TYPES (For UsersManagement)
+// ===================================
+
+export type AppUserRole = 'Admin' | 'Editor' | 'User'; 
 
 export interface AppUser {
   id: string;
   firstName: string; 
   lastName: string;  
   email: string;
-  password: string; // In a real app, this should be a hash.
+  password: string; 
   role: AppUserRole;
   
-  // Custom Fields
   referralCode: string;
-  referredBy?: string; // Optional ID of the user who referred them
-  discounted: boolean;
+  referredBy?: string; 
+  // --- CHANGED ---
+  discountAmount: number | null; // e.g., 10 for 10%, null for no discount
   
   // Auditing/Metadata fields
   createdBy: string;
   createdAt: string;
   editedBy?: string;
   editedAt?: string;
-  deletedBy?: string;
-  deletedAt?: string;
+  deletedBy?: string; 
+  deletedAt?: string; 
 }
 
 
 // ===================================
 // EXERCISE / TASK TYPES
-// (As provided and confirmed)
 // ===================================
 
 export type ExerciseType = 'Reading' | 'Writing' | 'Listening' | 'Speaking';
@@ -61,7 +64,13 @@ export interface MatchingTask extends BaseTask {
 export interface FillingBlanksTask extends BaseTask {
   taskType: 'Filling Blanks';
   maxWordsPerBlank: number;
-  blanks: { id: string, value: string }[];
+  // --- CHANGED ---
+  blanks: { 
+      id: string, 
+      textBefore: string, 
+      numBlanks: number,   
+      textAfter?: string   
+  }[];
 }
 
 export interface MCQTask extends BaseTask {

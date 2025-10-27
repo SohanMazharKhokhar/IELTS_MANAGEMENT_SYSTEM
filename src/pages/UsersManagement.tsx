@@ -1,26 +1,19 @@
-// src/pages/UsersManagement.tsx (Final Version with Role Edit Fix)
+// src/pages/UsersManagement.tsx
 
 import React, { useState, useEffect } from 'react';
-import { AppUser, User } from '../types';
+import { AppUser, User } from '../types'; 
 import AddUserModal from '../components/AddUserModal';
 import { PlusIcon, TrashIcon } from '../components/icons';
-// --- IMPORT ADMIN USERS from useAuth.tsx ---
 import { adminUsers } from '../hooks/useAuth'; 
-// ------------------------------------------
 
-// --- HELPER TO CONVERT ADMIN USERS TO APP USERS ---
+// Helper to convert admin users
 const convertAdminToAppUser = (user: User): AppUser => {
-    // Splits the name (e.g., 'Ahmad (Super Admin)')
     const parts = user.name.split(' ');
     const firstName = parts[0];
     const lastName = parts.length > 1 ? parts.slice(1).join(' ') : 'Admin';
-
     let role: AppUser['role'] = 'User';
-    if (user.email.includes('admin') || user.name.includes('Super')) {
-        role = 'Admin';
-    } else if (user.name.includes('Editor') || user.name.includes('Specialist')) {
-        role = 'Editor';
-    }
+    if (user.email.includes('admin') || user.name.includes('Super')) role = 'Admin';
+    else if (user.name.includes('Editor') || user.name.includes('Specialist')) role = 'Editor';
 
     return {
         id: user.id,
@@ -29,30 +22,27 @@ const convertAdminToAppUser = (user: User): AppUser => {
         email: user.email,
         password: user.password,
         role: role,
-        referralCode: `ADMIN-${user.id}`,
-        discounted: true,
+        referralCode: `ADMIN-${user.id}`, 
+        discountAmount: (role === 'Admin' || role === 'Editor') ? 5 : null, // Initial discount
         referredBy: 'System',
-        createdBy: 'System',
+        createdBy: 'System', 
         createdAt: new Date().toISOString(),
+        editedBy: undefined, 
+        editedAt: undefined,
     };
 };
-// -----------------------------------------------------------------------------------
 
 const USERS_STORAGE_KEY = 'ielts_app_users';
-const CURRENT_ADMIN_USER_ID = '1'; 
+const CURRENT_ADMIN_USER_ID = '1'; // Replace with actual logged-in user ID later
 
 const getInitialUsers = (): AppUser[] => {
-  const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-  if (storedUsers) {
-    // TEMPORARY OVERRIDE REMOVED, RESTORED TO PERSISTENCE LOGIC
-    // NOTE: If you still see the old list, clear browser Local Storage for ielts_app_users
-    return JSON.parse(storedUsers); 
-  }
-  
-  // Initialize with admin users if localStorage is empty
-  const initialAppUsers = adminUsers.map(convertAdminToAppUser);
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialAppUsers));
-  return initialAppUsers;
+    const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+    if (storedUsers) {
+        return JSON.parse(storedUsers);
+    }
+    const initialAppUsers = adminUsers.map(convertAdminToAppUser);
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialAppUsers));
+    return initialAppUsers;
 };
 
 
@@ -61,53 +51,58 @@ const UsersManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | undefined>(undefined); 
 
-  // EFFECT to save to localStorage whenever users state changes (Persistence)
   useEffect(() => {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
   }, [users]);
   
-  // --- MODIFIED handleSaveUser to explicitly use form data for update ---
   const handleSaveUser = async (data: any, userId?: string): Promise<boolean> => {
     if (users.some(u => u.email === data.email && u.id !== userId)) {
-      return false; // Email already exists
+      return false; 
     }
 
+    // Convert discount input to number or null
+    const discountValue = data.discountAmount ? parseFloat(data.discountAmount) : null;
+
     if (userId) {
-      // EDIT existing user - Explicitly mapping all required fields from form 'data'
+      // EDIT existing user 
       setUsers(prevUsers => prevUsers.map(u => 
         u.id === userId 
           ? { 
               ...u, 
-              // Fields updated from modal's data object
               firstName: data.firstName,
               lastName: data.lastName,
               email: data.email,
-              password: data.password, 
-              role: data.role, // <--- CRITICAL: Ensures the selected role is used
+              password: data.password || u.password, // Update password only if provided
+              role: data.role, 
               referralCode: data.referralCode,
-              
-              // Auditing
+              discountAmount: discountValue, // Update discount
+
               editedAt: new Date().toISOString(),
-              editedBy: CURRENT_ADMIN_USER_ID,
+              editedBy: CURRENT_ADMIN_USER_ID, 
             } 
           : u
       ));
     } else {
       // CREATE new user
       const newUser: AppUser = {
-        ...data,
         id: new Date().toISOString(),
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: data.password,
+        role: data.role,
         referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        discounted: false,
+        discountAmount: discountValue, // Save discount amount
         referredBy: undefined,
-        createdBy: CURRENT_ADMIN_USER_ID,
+        createdBy: CURRENT_ADMIN_USER_ID, 
         createdAt: new Date().toISOString(),
+        editedBy: undefined,
+        editedAt: undefined,
       };
       setUsers(prevUsers => [...prevUsers, newUser]);
     }
     return true;
   };
-  // ----------------------------------------------------------------------
 
   const handleRemoveUser = (userId: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
@@ -130,9 +125,6 @@ const UsersManagement: React.FC = () => {
     setEditingUser(undefined); 
   };
   
-  const commonInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
-  const labelClasses = "block text-sm font-medium text-gray-700";
-
   return (
     <>
       <div className="flex justify-between items-center mb-6">
@@ -158,9 +150,11 @@ const UsersManagement: React.FC = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral Code</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referred By</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discounted</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount (%)</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edited By</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edited At</th>
               <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
@@ -173,7 +167,7 @@ const UsersManagement: React.FC = () => {
                   <div className="text-sm text-gray-500">{user.email}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                     user.role === 'Admin' ? 'bg-red-100 text-red-800' :
                     user.role === 'Editor' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-blue-100 text-blue-800'
@@ -181,19 +175,19 @@ const UsersManagement: React.FC = () => {
                     {user.role}
                   </span>
                 </td>
-                
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.referralCode}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.referredBy || 'N/A'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`font-semibold ${user.discounted ? 'text-green-600' : 'text-red-600'}`}>
-                        {user.discounted ? 'Yes' : 'No'}
-                    </span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.discountAmount !== null ? `${user.discountAmount}%` : 'None'}
                 </td>
-
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.createdBy || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(user.createdAt).toLocaleDateString()}
                 </td>
-
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.editedBy || 'N/A'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.editedAt ? new Date(user.editedAt).toLocaleDateString() : 'N/A'}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                   <button 
                     onClick={() => handleEditClick(user)}
@@ -211,7 +205,7 @@ const UsersManagement: React.FC = () => {
               </tr>
             )) : (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-gray-500">
+                <td colSpan={11} className="text-center py-10 text-gray-500"> 
                   No users found. Click "Create New User" to add one.
                 </td>
               </tr>
@@ -223,7 +217,7 @@ const UsersManagement: React.FC = () => {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         editingUser={editingUser}
-        onAddUser={handleSaveUser as any}
+        onAddUser={handleSaveUser as any} 
       />
     </>
   );

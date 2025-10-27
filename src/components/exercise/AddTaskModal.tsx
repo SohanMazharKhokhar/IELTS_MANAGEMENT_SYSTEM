@@ -8,13 +8,11 @@ import { PlusIcon, TrashIcon } from '../icons';
 interface AddTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // NEW PROP: Pass the task object if editing, or null if creating
   editingTask: Task | null; 
-  // RENAME: The handler now receives the task data and the original task ID (if editing)
   onSaveTask: (taskData: Task, originalTaskId: string | null) => void; 
 }
 
-// Ensure the form structure can handle all possible fields from the Task union
+// Update form type for Filling Blanks
 type TaskFormInputs = {
     taskType: TaskType;
     title: string;
@@ -25,7 +23,7 @@ type TaskFormInputs = {
     group2: { value: string, id?: string }[];
     // Filling Blanks
     maxWordsPerBlank: number;
-    blanks: { value: string, id?: string }[];
+    blanks: { textBefore: string, numBlanks: number, textAfter?: string, id?: string }[]; // Updated structure
     // MCQ
     allowMultipleSelections: boolean;
     questions: { 
@@ -49,7 +47,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
       group1: [{ value: '' }],
       group2: [{ value: '' }],
       maxWordsPerBlank: 1,
-      blanks: [{ value: '' }],
+      blanks: [{ textBefore: '', numBlanks: 1, textAfter: '' }], // Updated default
       allowMultipleSelections: false,
       questions: [{ questionText: '', options: [{ value: '' }] }],
       maxWordsPerAnswer: 20,
@@ -61,35 +59,31 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
 
   useEffect(() => {
     if (isOpen) {
+        const isFillingBlanks = editingTask?.taskType === 'Filling Blanks';
+        const isMatching = editingTask?.taskType === 'Matching';
+        const isMCQ = editingTask?.taskType === 'MCQ';
+
         if (editingTask) {
-            // --- LOAD DATA FOR EDITING ---
-            const task = editingTask as any; // Cast to any for easy access to union properties
+            const task = editingTask as any; 
             reset({
                 taskType: task.taskType,
                 title: task.title,
                 description: task.description,
                 allowedTime: task.allowedTime,
                 
-                // Matching
-                group1: (task.taskType === 'Matching' ? task.group1 : [{ value: '' }]) || [{ value: '' }],
-                group2: (task.taskType === 'Matching' ? task.group2 : [{ value: '' }]) || [{ value: '' }],
+                group1: isMatching ? task.group1 : [{ value: '' }],
+                group2: isMatching ? task.group2 : [{ value: '' }],
                 
-                // Filling Blanks
                 maxWordsPerBlank: task.maxWordsPerBlank || 1,
-                blanks: (task.taskType === 'Filling Blanks' ? task.blanks : [{ value: '' }]) || [{ value: '' }],
+                blanks: isFillingBlanks ? task.blanks : [{ textBefore: '', numBlanks: 1, textAfter: '' }],
                 
-                // MCQ
                 allowMultipleSelections: task.allowMultipleSelections || false,
-                questions: task.questions || [{ questionText: '', options: [{ value: '' }] }],
+                questions: isMCQ ? task.questions : [{ questionText: '', options: [{ value: '' }] }],
                 
-                // QA
                 maxWordsPerAnswer: task.maxWordsPerAnswer || 20,
-
-                // Writing
                 minimumWordCount: task.minimumWordCount || 150,
             });
         } else {
-            // --- RESET FOR CREATING NEW TASK ---
             reset({
                 taskType: 'Matching',
                 title: '',
@@ -98,7 +92,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
                 group1: [{ value: '' }],
                 group2: [{ value: '' }],
                 maxWordsPerBlank: 1,
-                blanks: [{ value: '' }],
+                blanks: [{ textBefore: '', numBlanks: 1, textAfter: '' }], // Updated reset default
                 allowMultipleSelections: false,
                 questions: [{ questionText: '', options: [{ value: '' }] }],
                 maxWordsPerAnswer: 20,
@@ -115,12 +109,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
   const { fields: mcqFields, append: mcqAppend, remove: mcqRemove } = useFieldArray({ control, name: "questions" });
 
   const onSubmit: SubmitHandler<TaskFormInputs> = (data) => {
-    // 1. Process data and ensure all array items have IDs
     const processedData: any = {
         ...data,
         group1: data.group1?.map(item => ({ ...item, id: item.id || new Date().toISOString() })),
         group2: data.group2?.map(item => ({ ...item, id: item.id || new Date().toISOString() })),
-        blanks: data.blanks?.map(item => ({ ...item, id: item.id || new Date().toISOString() })),
+        blanks: data.blanks?.map(item => ({ 
+            ...item, 
+            id: item.id || new Date().toISOString(),
+            numBlanks: Number(item.numBlanks) || 1 
+        })),
         questions: data.questions?.map(q => ({ 
             ...q, 
             id: q.id || new Date().toISOString(),
@@ -128,13 +125,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
         })),
     }
 
-    // 2. Create the final Task object (preserving original ID if editing)
     const finalTask: Task = { 
         ...(editingTask ? editingTask : { id: new Date().toISOString() }),
         ...processedData 
     } as unknown as Task;
 
-    // 3. Call the modified handler
     onSaveTask(finalTask, editingTask ? editingTask.id : null);
     onClose();
   };
@@ -151,9 +146,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
         <div className="p-6 border-b">
           <h2 className="text-xl font-semibold">{editingTask ? 'Edit Task' : 'Add New Task'}</h2>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex-grow overflow-y-auto">
-          {/* ... (Common Fields: Task Type, Title, Description, Allowed Time - Remain the same) ... */}
-          
+        <form onSubmit={handleSubmit(onSubmit)} className="flex-grow overflow-y-auto">          
             <div className="p-6 space-y-4">
               {/* Common Fields */}
               <div>
@@ -181,7 +174,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
 
             <hr/>
             
-            {/* Dynamic Fields (remain the same, but now load data) */}
+            {/* Dynamic Fields */}
             <div className="space-y-4">
               {taskType === 'Matching' && (
                 <div className="grid grid-cols-2 gap-4">
@@ -210,20 +203,56 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
                 </div>
               )}
 
+              {/* --- UPDATED FILLING BLANKS FORM --- */}
               {taskType === 'Filling Blanks' && (
                   <div>
-                    <label htmlFor="maxWordsPerBlank" className={labelClasses}>Max Words per Blank</label>
-                    <input type="number" id="maxWordsPerBlank" {...register('maxWordsPerBlank', {valueAsNumber: true})} className={commonInputClasses} />
-                    <h3 className="font-medium mt-4 mb-2">Blanks Content</h3>
-                     {blankFields.map((field, index) => (
-                      <div key={field.id} className="flex items-center mb-2">
-                         <input {...register(`blanks.${index}.value` as const)} className={commonInputClasses} placeholder="Text for blank..."/>
-                        <button type="button" onClick={() => blankRemove(index)} className="ml-2 text-red-500"><TrashIcon/></button>
-                      </div>
-                    ))}
-                    <button type="button" onClick={() => blankAppend({ value: '' })} className={`${buttonClasses} bg-blue-500 hover:bg-blue-600`}><PlusIcon className="mr-1"/>Add Blank</button>
-                </div>
+                      <label htmlFor="maxWordsPerBlank" className={labelClasses}>Max Words per Blank</label>
+                      <input type="number" id="maxWordsPerBlank" {...register('maxWordsPerBlank', {valueAsNumber: true, min: 1})} defaultValue={1} className={commonInputClasses} />
+                      
+                      <h3 className="font-medium mt-4 mb-2">Blanks Content</h3>
+                      {blankFields.map((field, index) => (
+                          <div key={field.id} className="p-3 border rounded-md mb-2 bg-gray-50 space-y-2">
+                              <div className="flex justify-between items-center">
+                                  <label className="text-sm font-medium text-gray-600">Blank Entry {index + 1}</label>
+                                  <button type="button" onClick={() => blankRemove(index)} className="text-red-500"><TrashIcon className="w-4 h-4"/></button>
+                              </div>
+                              <div>
+                                  <label htmlFor={`blanks.${index}.textBefore`} className="text-xs text-gray-500">Text Before Blank(s)</label>
+                                  <input 
+                                      {...register(`blanks.${index}.textBefore` as const)} 
+                                      className={commonInputClasses} 
+                                      placeholder="Optional text before..."
+                                  />
+                              </div>
+                              <div>
+                                  <label htmlFor={`blanks.${index}.numBlanks`} className="text-xs text-gray-500">Number of Blanks</label>
+                                  <input 
+                                      type="number" 
+                                      {...register(`blanks.${index}.numBlanks` as const, {valueAsNumber: true, min: 1})} 
+                                      defaultValue={1}
+                                      className={commonInputClasses} 
+                                  />
+                              </div>
+                               <div>
+                                  <label htmlFor={`blanks.${index}.textAfter`} className="text-xs text-gray-500">Text After Blank(s)</label>
+                                  <input 
+                                      {...register(`blanks.${index}.textAfter` as const)} 
+                                      className={commonInputClasses} 
+                                      placeholder="Optional text after..."
+                                  />
+                              </div>
+                          </div>
+                      ))}
+                      <button 
+                          type="button" 
+                          onClick={() => blankAppend({ textBefore: '', numBlanks: 1, textAfter: '' })} 
+                          className={`${buttonClasses} bg-blue-500 hover:bg-blue-600`}
+                      >
+                          <PlusIcon className="mr-1"/>Add Blank Entry
+                      </button>
+                  </div>
               )}
+              {/* -------------------------------------- */}
 
               {taskType === 'MCQ' && (
                 <div>
@@ -265,6 +294,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
                     <h3 className="font-medium mt-4 mb-2">Questions</h3>
                     {qaFields.map((field, index) => (
                        <div key={field.id} className="flex items-center mb-2">
+                          {/* Use register to connect to form state */}
                           <input {...register(`questions.${index}.value` as const)} className={commonInputClasses} placeholder={`Question ${index + 1}`} />
                           <button type="button" onClick={() => qaRemove(index)} className="ml-2 text-red-500"><TrashIcon /></button>
                       </div>
@@ -294,7 +324,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, editingTas
   );
 };
 
-// Use UseFormReturn<TaskFormInputs> for stronger type checking
+// MCQ Options sub-component
 const MCQOptions: React.FC<{nestIndex: number, control: UseFormReturn<TaskFormInputs>['control'], register: UseFormReturn<TaskFormInputs>['register']}> = ({ nestIndex, control, register }) => {
     const { fields, remove, append } = useFieldArray({
         control,
