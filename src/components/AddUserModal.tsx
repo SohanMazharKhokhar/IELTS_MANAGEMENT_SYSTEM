@@ -1,5 +1,4 @@
 // src/components/AddUserModal.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { AppUser, AppUserRole } from '../../types';
