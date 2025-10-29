@@ -39,12 +39,14 @@ const LoggedInApp: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         exerciseToEdit={exerciseToEdit}
         moduleType={moduleType}
         onClose={handleCloseEdit}
+        currentUserRole={currentUser.role} // <-- Pass role to form
       />;
     }
     // Otherwise show list view
     return <ExercisesManagement
       moduleType={moduleType}
       onEdit={handleEditExercise}
+      currentUserRole={currentUser.role} // <-- Pass role to list
     />;
   };
 
@@ -60,7 +62,7 @@ const LoggedInApp: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         return <Dashboard />;
       case 'Users Management':
         // --- Access Control Check ---
-        // UPDATED: Now allows SuperAdmin, Admin, AND Editor
+        // --- CHANGE: Allow Editor to access Users Management ---
         if (currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin' || currentUser.role === 'Editor') {
             return <UsersManagement currentUserRole={currentUser.role} currentUserId={currentUser.id} />;
         }
@@ -68,7 +70,6 @@ const LoggedInApp: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         return <Dashboard />; // Redirect unauthorized roles
       case 'Subscriptions':
          // --- Access Control Check ---
-         // This remains Admin-only
          if (currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') {
             return <div className="p-8"><h1 className="text-2xl font-bold">Subscriptions (Placeholder)</h1></div>;
          }
@@ -82,14 +83,9 @@ const LoggedInApp: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       // Fallback
       case 'Exercises Management': // If somehow landed here directly
       default:
-        // Editors shouldn't see this, default them to Dashboard
-        if (currentUser.role === 'Editor') {
-            setActivePage('Dashboard');
-            return <Dashboard />;
-        }
-        // Admins/SuperAdmins default to Reading
-        setActivePage('Reading'); 
-        return renderExerciseContent('Reading');
+        // --- CHANGE: Default to Dashboard for a safer fallback ---
+        setActivePage('Dashboard'); 
+        return <Dashboard />;
     }
   };
 
@@ -117,20 +113,22 @@ const App: React.FC = () => {
         return <LoginPage />;
     }
 
-    // --- Routing based on role ---
-    // UPDATED: This logic now correctly routes all 3 portal roles to the LoggedInApp
-    // Your "User" role from useAuth.tsx (if it existed) would fail this check.
+    // --- CHANGE: Handle all 4 roles from types.ts ---
     if (currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin' || currentUser.role === 'Editor') {
-        // SuperAdmins, Admins, and Editors see the admin interface
-        // The Sidebar and App components will handle what they see inside
+        // SuperAdmins, Admins, and Editors see the full admin interface
         return <LoggedInApp currentUser={currentUser} />;
+    } else if (currentUser.role === 'User') {
+        // 'User' role sees the "solve exercise" view
+        return <EditorTaskView />;
     }
-    // ----------------------------
+    // ---------------------------------------------
 
-    // Fallback for unexpected roles (like 'User' trying portal login)
-    // This correctly implements your "User Can Not Login" rule.
+    // Fallback for unexpected roles
     console.error("Access Denied: Unexpected user role for portal access:", currentUser.role);
+    // You might want a dedicated "Access Denied" component here
+    // For now, redirecting to login.
     return <LoginPage />;
 }
 
 export default App;
+

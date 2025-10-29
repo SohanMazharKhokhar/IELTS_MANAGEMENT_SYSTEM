@@ -1,8 +1,9 @@
 // src/pages/ExerciseForm.tsx
 
-import React, { useState, useRef } from 'react'; // Import useRef
+import React, { useState, useRef, useEffect } from 'react'; // Import useRef and useEffect
 import { useForm, SubmitHandler } from 'react-hook-form';
-import { Exercise, Task, ExerciseType } from '../types';
+// --- CHANGE: Import PortalUserRole ---
+import { Exercise, Task, ExerciseType, PortalUserRole } from '../types';
 import AddTaskModal from '../components/AddTaskModal';
 import { PlusIcon, SaveIcon, TrashIcon } from '../components/icons';
 
@@ -12,15 +13,16 @@ interface ExerciseFormProps {
     exerciseToEdit: Exercise | null;
     moduleType: ExerciseType;
     onClose: () => void;
+    currentUserRole: PortalUserRole; // <-- CHANGE: Accept the role
 }
 
 const EXERCISES_STORAGE_KEY = 'ielts_saved_exercises';
-const getExercisesFromStorage = () => {
+const getExercisesFromStorage = (): Exercise[] => {
     const stored = localStorage.getItem(EXERCISES_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
 };
 
-const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType, onClose }) => {
+const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType, onClose, currentUserRole }) => {
   const isEditing = !!exerciseToEdit;
 
   const [currentTasks, setCurrentTasks] = useState<Task[]>(exerciseToEdit ? exerciseToEdit.tasks : []);
@@ -47,16 +49,102 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
     }
   });
 
+  // --- FIX: Reset form when exerciseToEdit changes ---
+  useEffect(() => {
+    if (exerciseToEdit) {
+      reset({
+        exerciseType: exerciseToEdit.exerciseType,
+        title: exerciseToEdit.title,
+        description: exerciseToEdit.description,
+        allowedTime: exerciseToEdit.allowedTime,
+        passage: exerciseToEdit.passage,
+        imageUrl: exerciseToEdit.imageUrl,
+        recordingUrl: exerciseToEdit.recordingUrl,
+      });
+      setCurrentTasks(exerciseToEdit.tasks);
+    } else {
+      reset({
+        exerciseType: moduleType,
+        title: '',
+        description: '',
+        allowedTime: 40,
+        passage: '',
+        imageUrl: '',
+        recordingUrl: '',
+      });
+      setCurrentTasks([]);
+    }
+  }, [exerciseToEdit, moduleType, reset]);
+  // -----------------------------------------------
+
   const exerciseType = watch('exerciseType'); // Watch current exercise type selected in form
 
-  // --- TASK MODAL HANDLERS (remain the same) ---
+  // --- TASK MODAL HANDLERS ---
   const handleOpenTaskModal = (taskToEdit: Task | null) => { setEditingTask(taskToEdit); setIsModalOpen(true); }
   const handleCloseTaskModal = () => { setEditingTask(null); setIsModalOpen(false); }
-  const handleSaveTask = (taskData: Task, originalTaskId: string | null) => { /* ... */ };
-  const handleRemoveTask = (taskId: string) => { /* ... */ };
+  
+  // --- FIX: Implemented handleSaveTask ---
+  const handleSaveTask = (taskData: Task, originalTaskId: string | null) => {
+    if (originalTaskId) {
+      // Editing existing task
+      setCurrentTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === originalTaskId ? { ...taskData, id: task.id } : task // Ensure ID is preserved
+        )
+      );
+    } else {
+      // Adding new task
+      const newTask = { ...taskData, id: crypto.randomUUID() }; // Assign a new unique ID
+      setCurrentTasks(prevTasks => [...prevTasks, newTask]);
+    }
+    handleCloseTaskModal(); // Close modal on save
+  };
+  // --------------------------------------
 
-  // --- MAIN FORM SUBMISSION (remains the same) ---
-  const onSaveExercise: SubmitHandler<ExerciseFormInputs> = (data) => { /* ... */ };
+  // --- FIX: Implemented handleRemoveTask ---
+  const handleRemoveTask = (taskId: string) => {
+    // --- CHANGE: Add permission check for Editor ---
+    if (currentUserRole === 'Editor') {
+        alert("You do not have permission to remove tasks.");
+        return;
+    }
+    // -------------------------------------------
+    if (window.confirm("Are you sure you want to remove this task?")) {
+      setCurrentTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+    }
+  };
+  // ----------------------------------------
+
+  // --- FIX: Implemented MAIN FORM SUBMISSION ---
+  const onSaveExercise: SubmitHandler<ExerciseFormInputs> = (data) => {
+    const allExercises = getExercisesFromStorage();
+    let updatedList: Exercise[] = [];
+
+    const exercise: Exercise = {
+        ...data,
+        id: exerciseToEdit ? exerciseToEdit.id : crypto.randomUUID(), // Keep existing ID or create new one
+        tasks: currentTasks, // Attach the tasks
+        exerciseType: moduleType, // Ensure correct module type
+    };
+
+    if (isEditing) {
+      // Update existing exercise
+      updatedList = allExercises.map(ex => 
+        ex.id === exercise.id ? exercise : ex
+      );
+    } else {
+      // Add new exercise
+      updatedList = [...allExercises, exercise];
+    }
+
+    // Save back to local storage
+    localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(updatedList));
+    
+    // Log and go back to list
+    console.log("Exercise saved:", exercise);
+    onClose(); 
+  };
+  // ------------------------------------------
 
   // --- File Picker Handlers ---
   const handleImageButtonClick = () => { imageFileInputRef.current?.click(); };
@@ -89,6 +177,21 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
 
   const commonInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
   const labelClasses = "block text-sm font-medium text-gray-700";
+
+  // --- CHANGE: Add permission check ---
+  // If user is 'Editor' AND is not editing (i.e., is in 'create' mode)
+  if (!isEditing && currentUserRole === 'Editor') {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md text-center">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Permission Denied</h1>
+        <p className="text-gray-700">You do not have permission to create new exercises.</p>
+        <button type="button" onClick={onClose} className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+             &larr; Back to List
+        </button>
+      </div>
+    );
+  }
+  // ------------------------------------
 
   return (
     <>
@@ -214,10 +317,14 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
        <div className="bg-white p-6 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-4 border-b pb-3">
           <h2 className="text-xl font-semibold text-gray-800">Tasks Included</h2>
-          <button type="button" onClick={() => handleOpenTaskModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
-            <PlusIcon className="mr-2 w-4 h-4" />
-            Add New Task
-          </button>
+          {/* --- CHANGE: Add permission check for Editor --- */}
+          {(currentUserRole === 'SuperAdmin' || currentUserRole === 'Admin') && (
+            <button type="button" onClick={() => handleOpenTaskModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+              <PlusIcon className="mr-2 w-4 h-4" />
+              Add New Task
+            </button>
+          )}
+          {/* ------------------------------------------- */}
         </div>
         <div className="space-y-4">
           {currentTasks.length > 0 ? currentTasks.map((task, index) => (
@@ -246,3 +353,4 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
 };
 
 export default ExerciseForm;
+

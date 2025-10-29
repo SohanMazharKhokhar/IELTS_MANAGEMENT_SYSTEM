@@ -3,8 +3,9 @@
 // ===================================
 // AUTH/ADMIN USER TYPE (Portal Login)
 // ===================================
-// Roles for users who can log into the ADMIN PORTAL
-export type PortalUserRole = 'SuperAdmin' | 'Admin' | 'Editor';
+// Roles for users who can log into the PORTAL
+// --- CHANGE: Added 'User' to this type ---
+export type PortalUserRole = 'SuperAdmin' | 'Admin' | 'Editor' | 'User';
 
 export interface User {
   id: string;
@@ -18,6 +19,7 @@ export interface User {
 // APPLICATION USER TYPES (Managed Users)
 // ===================================
 // All possible roles within the application ecosystem
+// --- CHANGE: This is now identical to PortalUserRole, which is correct ---
 export type AppUserRole = 'SuperAdmin' | 'Admin' | 'Editor' | 'User';
 
 export interface AppUser {

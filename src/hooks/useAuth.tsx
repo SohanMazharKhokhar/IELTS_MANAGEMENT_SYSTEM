@@ -1,12 +1,12 @@
 // src/hooks/useAuth.tsx
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-// User type now includes specific PortalUserRole
-import { User, PortalUserRole } from '../types';
+// User type now includes 'User' role
+import { User, PortalUserRole, AppUser } from '../types';
 import { logActivity } from '../utils/activityLogger'; // Assuming path is correct
 
-// --- Assign Roles directly in the list ---
-// Ensure only ONE SuperAdmin
+// --- This list is now ONLY for seeding data if localStorage is empty ---
+// (It's used by UsersManagement.tsx)
 export const adminUsers: User[] = [
   // SuperAdmin (Exactly ONE)
   { id: '1', name: 'Ahmad (Super Admin)', email: 'admin@ielts.com', password: 'password123', role: 'SuperAdmin' },
@@ -19,26 +19,20 @@ export const adminUsers: User[] = [
   // Editors (These users see EditorTaskView)
   { id: '5', name: 'Alex Johnson (Editor)', email: 'editor@ielts.com', password: 'password456', role: 'Editor' },
   { id: '6', name: 'David Lee (Reading Editor)', email: 'david.lee@ielts.com', password: 'readedit', role: 'Editor' },
-  { id: '10', name: 'Robert Green (Grammar Specialist)', email: 'robert.g@ielts.com', password: 'gram123', role: 'Editor' },
-  { id: '11', name: 'Laura Martinez (Marketing)', email: 'laura.m@ielts.com', password: 'market1', role: 'Editor' },
-  { id: '12', name: 'Kevin Hall (Affiliate Manager)', email: 'kevin.h@ielts.com', password: 'affiliate', role: 'Editor' },
-  { id: '13', name: 'Olivia Scott (Sales)', email: 'olivia.s@ielts.com', password: 'sales', role: 'Editor' },
-  { id: '14', name: 'Daniel King (Support Lead)', email: 'daniel.k@ielts.com', password: 'support1', role: 'Editor' },
-  { id: '15', name: 'Grace Wilson (QA Tester)', email: 'grace.w@ielts.com', password: 'qauser', role: 'Editor' },
-  { id: '16', name: 'Ryan Adams', email: 'ryan.a@ielts.com', password: 'testuser1', role: 'Editor' },
-  { id: '17', name: 'Chloe Baker', email: 'chloe.b@ielts.com', password: 'testuser2', role: 'Editor' }
 ];
 // ------------------------------------
 
 const CURRENT_USER_STORAGE_KEY = 'ielts_admin_current_user';
+// --- CHANGE: Use the same key as UsersManagement ---
+const USERS_STORAGE_KEY = 'ielts_app_users';
 
 const getCurrentUserFromStorage = (): User | null => {
     const storedUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
     if (storedUser) {
         try {
             const parsedUser = JSON.parse(storedUser);
-            // Validate essential fields including role
-            if (parsedUser && parsedUser.id && parsedUser.email && parsedUser.role && ['SuperAdmin', 'Admin', 'Editor'].includes(parsedUser.role)) {
+            // --- CHANGE: Validate against the new role list (which includes 'User') ---
+            if (parsedUser && parsedUser.id && parsedUser.email && parsedUser.role && ['SuperAdmin', 'Admin', 'Editor', 'User'].includes(parsedUser.role)) {
                 return parsedUser as User;
             } else {
                  console.warn("Stored user data is invalid or missing role. Clearing.");
@@ -64,11 +58,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(() => getCurrentUserFromStorage());
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    const user = adminUsers.find(u => u.email === email && u.password === password);
+    // --- CHANGE: Read from localStorage, not hardcoded list ---
+    const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+    const allUsers: AppUser[] = storedUsers ? JSON.parse(storedUsers) : [];
+
+    const user = allUsers.find(u => u.email === email && u.password === password);
+    // ----------------------------------------------------
+
     if (user) {
-      setCurrentUser(user);
-      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
-      logActivity(`logged in`, user.name);
+      // --- CHANGE: Convert AppUser to User for context ---
+      const userForContext: User = {
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`, // Combine names
+        email: user.email,
+        password: user.password,
+        role: user.role, // This now matches PortalUserRole
+      };
+      // ------------------------------------------------
+
+      setCurrentUser(userForContext);
+      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userForContext));
+      logActivity(`logged in`, userForContext.name);
       return true;
     }
     // Optional: Log failed login attempts?

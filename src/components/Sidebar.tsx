@@ -19,19 +19,18 @@ const baseNavItems = [
   { name: 'Dashboard', icon: HomeIcon, page: 'Dashboard' as Page },
 ];
 
-// UPDATED: Users Management is now visible to Editors, so it's in its own group
-const userManagementNavItem = { 
-  name: 'Users Management', 
-  icon: UsersIcon, 
-  page: 'Users Management' as Page 
-};
+// --- CHANGE: Split into two groups ---
 
-// UPDATED: This list is now ONLY for items restricted to Admin/SuperAdmin
+// Nav items for Admin & SuperAdmin ONLY
 const adminOnlyNavItems = [
   { name: 'Subscriptions', icon: DollarSignIcon, page: 'Subscriptions' as Page },
 ];
+// Nav items for Staff (SA, Admin, AND Editor)
+const staffNavItems = [
+  { name: 'Users Management', icon: UsersIcon, page: 'Users Management' as Page },
+];
 
-// Exercise modules (only for Admin & SuperAdmin)
+// Exercise modules
 const exerciseModules = [
     { name: 'Reading', page: 'Reading' as Page },
     { name: 'Writing', page: 'Writing' as Page },
@@ -43,23 +42,17 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentUse
   const [isExercisesExpanded, setIsExercisesExpanded] = useState(false);
   const isExerciseActive = exerciseModules.some(module => module.page === activePage);
 
-  // Check role levels
-  const isSuperAdmin = currentUserRole === 'SuperAdmin';
-  const isAdmin = currentUserRole === 'Admin';
-  const isEditor = currentUserRole === 'Editor';
-
   // Determine which nav items to show based on role
   const availableNavItems = [
       ...baseNavItems,
-      // UPDATED: Show Users Management to all roles (SA, Admin, Editor)
-      ...(isSuperAdmin || isAdmin || isEditor ? [userManagementNavItem] : []),
-      // Show Subscriptions to only SA and Admin
-      ...(isSuperAdmin || isAdmin ? adminOnlyNavItems : [])
+      // --- CHANGE: Show staff items to all staff ---
+      ...(currentUserRole === 'SuperAdmin' || currentUserRole === 'Admin' || currentUserRole === 'Editor' ? staffNavItems : []),
+      // --- CHANGE: Show admin-only items to only admins ---
+      ...(currentUserRole === 'SuperAdmin' || currentUserRole === 'Admin' ? adminOnlyNavItems : [])
   ];
 
-  // Check if the current user should see the Exercise Management section
-  // This remains restricted to Admin/SuperAdmin per your implied rules
-  const showExerciseSection = isSuperAdmin || isAdmin;
+  // --- CHANGE: Allow Editors to see this section ---
+  const showExerciseSection = currentUserRole === 'Admin' || currentUserRole === 'SuperAdmin' || currentUserRole === 'Editor';
 
   return (
     <div className="flex-shrink-0 w-64 bg-white border-r border-gray-200 shadow-md h-screen">
@@ -134,3 +127,4 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentUse
 };
 
 export default Sidebar;
+
