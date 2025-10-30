@@ -3,52 +3,48 @@
 // ===================================
 // AUTH/ADMIN USER TYPE (Portal Login)
 // ===================================
-// Roles for users who can log into the PORTAL
-// --- CHANGE: Added 'User' to this type ---
 export type PortalUserRole = 'SuperAdmin' | 'Admin' | 'Editor' | 'User';
 
+// This User interface is what our 'currentUser' in useAuth will look like
+// It's based on the /me endpoint
 export interface User {
   id: string;
-  name: string;
+  name: string; // The API might send firstName/lastName, we'll combine them
   email: string;
-  password: string; // Should be hashed in production
-  role: PortalUserRole; // Use the specific portal roles
+  role: PortalUserRole;
+  isActive: boolean; // Added for Active/Inactive
 }
 
 // ===================================
 // APPLICATION USER TYPES (Managed Users)
 // ===================================
-// All possible roles within the application ecosystem
-// --- CHANGE: This is now identical to PortalUserRole, which is correct ---
 export type AppUserRole = 'SuperAdmin' | 'Admin' | 'Editor' | 'User';
 
+// This is the full user object from the API (e.g., from GET /api/v1/users)
+// --- THIS IS AN ASSUMPTION ---
+// You MUST update this to match your API's schema
 export interface AppUser {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  password: string; // Should be hashed in production
-  role: AppUserRole; // Use the full set of roles
-
-  // Other fields remain the same
+  password?: string; // Password should not be sent from the API
+  role: AppUserRole;
+  isActive: boolean; // Added for Active/Inactive status
   referralCode: string;
   referredBy?: string;
   discountAmount: number | null;
-  createdBy: string; // ID of creator
+  createdBy: string; 
   createdAt: string;
   editedBy?: string;
   editedAt?: string;
-  deletedBy?: string; // For soft deletes if implemented later
-  deletedAt?: string; // For soft deletes if implemented later
+  deletedBy?: string;
+  deletedAt?: string;
 }
 
-
-// ===================================
-// EXERCISE / TASK TYPES (Remain the same)
-// ===================================
+// ... (Exercise types remain unchanged) ...
 export type ExerciseType = 'Reading' | 'Writing' | 'Listening' | 'Speaking';
 export type TaskType = 'Matching' | 'Filling Blanks' | 'MCQ' | 'QA' | 'Writing';
-// ... (BaseTask, Specific Task Interfaces, Task Union, Exercise Interface remain the same) ...
 export interface BaseTask { /* ... */ }
 export interface MatchingTask extends BaseTask { /* ... */ }
 export interface FillingBlanksTask extends BaseTask { /* ... */ }

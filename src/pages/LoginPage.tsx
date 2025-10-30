@@ -1,42 +1,40 @@
-// This is your fully corrected LoginPage.tsx
+// src/pages/LoginPage.tsx
 
 import React, { useState } from 'react';
-import { useForm, SubmitHandler } from 'react-hook-form'; // <-- Import SubmitHandler
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { useAuth } from '../hooks/useAuth';
 import { EmailIcon, LockIcon } from '../components/icons';
 
-// Define the shape of your form data
 type FormInputs = {
     email: string;
     password: string;
 };
 
-interface LoginPageProps {
-    // No props needed here anymore
-}
+interface LoginPageProps {}
 
 const LoginPage: React.FC<LoginPageProps> = () => { 
-    // Register the form
     const { register, handleSubmit, formState: { errors } } = useForm<FormInputs>();
-    
-    // Get login function from auth hook
     const { login } = useAuth();
-    
-    // DEFINE THE MISSING STATE
     const [loginError, setLoginError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    // DEFINE THE MISSING ONSUBMIT FUNCTION
+    // --- (MODIFICATION) Improved Error Handling ---
     const onSubmit: SubmitHandler<FormInputs> = async (data) => {
         setIsLoading(true);
         setLoginError(null);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-        const success = await login(data.email, data.password);
-        if (!success) {
-            setLoginError('Invalid email or password. Please try again.');
+        
+        try {
+          // login() will now return true on success or throw an error
+          await login(data.email, data.password); 
+          // If successful, the app will redirect via the AuthProvider
+          
+        } catch (error: any) {
+          // Catch the specific error message from useAuth and display it
+          setLoginError(error.message || 'An unknown error occurred.');
+          setIsLoading(false); // Only set loading to false on error
         }
-        setIsLoading(false);
     };
+    // --- END OF MODIFICATION ---
 
     return (
         <div className="min-h-screen flex">
@@ -56,8 +54,8 @@ const LoginPage: React.FC<LoginPageProps> = () => {
                         <p className="text-gray-500 mt-2">Please sign in to continue.</p>
                     </div>
                     
-                    {/* Pass the defined onSubmit function to handleSubmit */}
                     <form onSubmit={handleSubmit(onSubmit)} noValidate>
+                        {/* This <p> tag will now show the *exact* API error */}
                         {loginError && <p className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-sm">{loginError}</p>}
                         
                         <div className="mb-5">
@@ -69,7 +67,13 @@ const LoginPage: React.FC<LoginPageProps> = () => {
                                 <input
                                     id="email"
                                     type="email"
-                                    {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' } })}
+                                    {...register('email', { 
+                                        required: 'Email is required', 
+                                        pattern: { 
+                                            value: /^\S+@\S+$/i, 
+                                            message: 'Invalid email address' 
+                                        } 
+                                    })}
                                     className="w-full bg-white pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                     placeholder="you@example.com"
                                 />
@@ -89,7 +93,7 @@ const LoginPage: React.FC<LoginPageProps> = () => {
                                     {...register('password', { required: 'Password is required' })}
                                     className="w-full bg-white pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                     placeholder="••••••••"
-                                />
+                                 />
                             </div>
                             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message as string}</p>}
                         </div>
@@ -103,7 +107,6 @@ const LoginPage: React.FC<LoginPageProps> = () => {
                         </button>
                     </form>
                     
-                    {/* The signup <p> tag is now correctly removed */}
                 </div>
             </div>
         </div>

@@ -1,88 +1,131 @@
 // src/hooks/useAuth.tsx
 
-import React, { createContext, useState, useEffect, useContext } from 'react';
-// User type now includes 'User' role
-import { User, PortalUserRole, AppUser } from '../types';
-import { logActivity } from '../utils/activityLogger'; // Assuming path is correct
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { User, PortalUserRole } from '../types';
+import { logActivity } from '../utils/activityLogger';
+// Import our new API helpers
+import { apiFetch, setToken, removeToken } from '../utils/apiService';
 
-// --- This list is now ONLY for seeding data if localStorage is empty ---
-// (It's used by UsersManagement.tsx)
-export const adminUsers: User[] = [
-  // SuperAdmin (Exactly ONE)
-  { id: '1', name: 'Ahmad (Super Admin)', email: 'admin@ielts.com', password: 'password123', role: 'SuperAdmin' },
-
-  // Admins
-  { id: '2', name: 'Maria Sanchez (Admin)', email: 'maria@ielts.com', password: 'password789', role: 'Admin' },
-  { id: '3', name: 'John Smith (Lead Admin)', email: 'john.smith@ielts.com', password: 'password111', role: 'Admin' },
-  { id: '4', name: 'Emily Clark (Audit)', email: 'emily.clark@ielts.com', password: 'password222', role: 'Admin' },
-
-  // Editors (These users see EditorTaskView)
-  { id: '5', name: 'Alex Johnson (Editor)', email: 'editor@ielts.com', password: 'password456', role: 'Editor' },
-  { id: '6', name: 'David Lee (Reading Editor)', email: 'david.lee@ielts.com', password: 'readedit', role: 'Editor' },
-];
-// ------------------------------------
-
-const CURRENT_USER_STORAGE_KEY = 'ielts_admin_current_user';
-// --- CHANGE: Use the same key as UsersManagement ---
-const USERS_STORAGE_KEY = 'ielts_app_users';
-
-const getCurrentUserFromStorage = (): User | null => {
-    const storedUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-    if (storedUser) {
-        try {
-            const parsedUser = JSON.parse(storedUser);
-            // --- CHANGE: Validate against the new role list (which includes 'User') ---
-            if (parsedUser && parsedUser.id && parsedUser.email && parsedUser.role && ['SuperAdmin', 'Admin', 'Editor', 'User'].includes(parsedUser.role)) {
-                return parsedUser as User;
-            } else {
-                 console.warn("Stored user data is invalid or missing role. Clearing.");
-                 localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-            }
-        } catch (error) {
-            console.error("Error parsing current user from storage:", error);
-            localStorage.removeItem(CURRENT_USER_STORAGE_KEY); // Clear invalid data
-        }
-    }
-    return null;
+// --- (NEW) Helper function to standardize roles ---
+const normalizeRole = (role: string): PortalUserRole => {
+  if (!role) return 'User'; // Default to 'User' if role is missing
+  const lowerRole = role.toLowerCase();
+  
+  switch (lowerRole) {
+    case 'superadmin':
+      return 'SuperAdmin';
+    case 'admin':
+      return 'Admin';
+    case 'editor':
+      return 'Editor';
+    case 'user':
+      return 'User';
+    default:
+      return 'User'; // Safely default any unknown roles
+  }
 };
+// --------------------------------------------------
+
 
 interface AuthContextType {
-  currentUser: User | null; // currentUser object includes role
-  login: (email: string, password: string) => Promise<boolean>;
+  currentUser: User | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<true>; // Throws error on fail
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => getCurrentUserFromStorage());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Start as true
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // --- CHANGE: Read from localStorage, not hardcoded list ---
-    const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-    const allUsers: AppUser[] = storedUsers ? JSON.parse(storedUsers) : [];
-
-    const user = allUsers.find(u => u.email === email && u.password === password);
-    // ----------------------------------------------------
-
-    if (user) {
-      // --- CHANGE: Convert AppUser to User for context ---
-      const userForContext: User = {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`, // Combine names
-        email: user.email,
-        password: user.password,
-        role: user.role, // This now matches PortalUserRole
+  // This function checks if a token exists and fetches the user
+  const checkAuth = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiFetch('/users/me', { method: 'GET' });
+      if (!response.ok) throw new Error('Not authenticated');
+      const userData = await response.json();
+      
+      const user: User = {
+        id: userData.id,
+        name: `${userData.firstName} ${userData.lastName}`,
+        email: userData.email,
+        role: normalizeRole(userData.role), // <-- (FIX APPLIED HERE)
+        isActive: userData.isActive,
       };
-      // ------------------------------------------------
 
-      setCurrentUser(userForContext);
-      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userForContext));
-      logActivity(`logged in`, userForContext.name);
-      return true;
+      setCurrentUser(user);
+
+    } catch (error) {
+      setCurrentUser(null);
+      removeToken(); // Clear any invalid token
+    } finally {
+      setIsLoading(false);
     }
-    // Optional: Log failed login attempts?
-    return false;
+  };
+
+  // On app load, run the auth check
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const login = async (email: string, password: string): Promise<true> => { 
+    try {
+      const response = await fetch('https://api-iprep.rezotera.com/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Login failed. Please try again.';
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.detail) { 
+            errorMessage = errorData.detail;
+          } else {
+            errorMessage = `Error ${response.status}: ${response.statusText}`;
+          }
+        } catch (e) {
+          errorMessage = `Error ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      
+      const token = data.token;
+      const userFromLogin = data.user;
+      
+      if (!token) throw new Error('Login successful, but no auth token was provided.');
+      if (!userFromLogin) throw new Error('Login successful, but no user object was provided.');
+      
+      // 1. Save the token
+      setToken(token);
+
+      // 2. Convert the user object
+      const userForContext: User = {
+        id: userFromLogin.id,
+        name: `${userFromLogin.firstName} ${userFromLogin.lastName}`,
+        email: userFromLogin.email,
+        role: normalizeRole(userFromLogin.role), // <-- (FIX APPLIED HERE)
+        isActive: userFromLogin.isActive,
+      };
+
+      // 3. Set the current user in state
+      setCurrentUser(userForContext);
+      
+      // 4. Log activity
+      logActivity(`logged in`, userForContext.name);
+
+      return true; // Return true on success
+
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   };
 
   const logout = () => {
@@ -90,10 +133,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logActivity(`logged out`, currentUser.name);
     }
     setCurrentUser(null);
-    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+    removeToken();
+    window.location.href = '/';
   };
 
-  const value = { currentUser, login, logout };
+  const value = { currentUser, login, logout, isLoading };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

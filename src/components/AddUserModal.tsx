@@ -1,14 +1,12 @@
 // src/components/AddUserModal.tsx
 
-import React, { useEffect, useState, useMemo } from 'react'; // <-- IMPORT useMemo
+import React, { useEffect, useState, useMemo } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 // Import all necessary types from the central types file
 import { AppUser, AppUserRole, User, PortalUserRole } from '../types';
 import { UserCircleIcon, EmailIcon, LockIcon } from './icons';
 
-/**
- * Helper function to get the numerical level of a role for comparison.
- */
+// ... (getRoleLevel and allAppUserRoles remain the same) ...
 const getRoleLevel = (role: AppUserRole | PortalUserRole | undefined): number => {
     switch (role) {
         case 'SuperAdmin': return 4;
@@ -18,20 +16,20 @@ const getRoleLevel = (role: AppUserRole | PortalUserRole | undefined): number =>
         default: return 0;
     }
 };
-
-// Define all possible AppUser roles
 const allAppUserRoles: AppUserRole[] = ['User', 'Editor', 'Admin', 'SuperAdmin'];
 
+
 // Form input type includes all editable fields
-type UserFormInputs = Pick<AppUser, 'firstName' | 'lastName' | 'email' | 'password' | 'role' | 'referralCode' | 'discountAmount'>;
+// --- (MODIFIED) Added isActive ---
+type UserFormInputs = Pick<AppUser, 'firstName' | 'lastName' | 'email' | 'password' | 'role' | 'referralCode' | 'discountAmount' | 'isActive'>;
 
 interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingUser: AppUser | undefined;
   onAddUser: (data: any, userId?: string) => Promise<boolean>;
-  currentUserRole: PortalUserRole; // Use PortalUserRole for the logged-in user
-  currentUserId: string; // <-- ADD currentUserId
+  currentUserRole: PortalUserRole; 
+  currentUserId: string;
 }
 
 const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUser, onAddUser, currentUserRole, currentUserId }) => {
@@ -39,25 +37,22 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUse
     defaultValues: {
       firstName: '', lastName: '', email: '', password: '',
       role: 'User', referralCode: '', discountAmount: null,
+      isActive: true, // Default to Active
     },
   });
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const isEditing = !!editingUser;
   const currentUserLevel = getRoleLevel(currentUserRole);
 
-  // --- FIX: Stabilize assignableRoles with useMemo ---
-  // This prevents it from being a new array on every render,
-  // which was causing the useEffect hook to re-run and reset the form.
   const assignableRoles = useMemo(() => {
+    // ... (logic remains the same) ...
     return allAppUserRoles.filter(role => {
         if (currentUserRole === 'SuperAdmin') return true; // SuperAdmin can assign any role
         // Others can only assign roles strictly below their own level
         return getRoleLevel(role) < currentUserLevel;
     });
   }, [currentUserRole, currentUserLevel]);
-  // --------------------------------------------------
 
-  // Check if the user being edited is the current user
   const isEditingSelf = isEditing && editingUser && editingUser.id === currentUserId;
 
   // Effect to load data or reset form
@@ -71,28 +66,27 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUse
                 password: '', // Clear password on edit
                 role: editingUser.role, // Load existing role
                 referralCode: editingUser.referralCode, discountAmount: editingUser.discountAmount,
+                isActive: editingUser.isActive, // Load current status
             });
         } else {
-             // Reset for creation, default role depends on what's assignable
+             // Reset for creation
              reset({
                 firstName: '', lastName: '', email: '', password: '',
-                role: assignableRoles.includes('User') ? 'User' : assignableRoles[0] || 'User', // Sensible default
+                role: assignableRoles.includes('User') ? 'User' : assignableRoles[0] || 'User', 
                 referralCode: '', discountAmount: null,
+                isActive: true, // Default to active
              });
         }
     }
-  }, [isOpen, reset, editingUser, assignableRoles]); // <-- UPDATED dependency array
+  }, [isOpen, reset, editingUser, assignableRoles]); 
 
   // Submit handler (passes data up)
   const onSubmit: SubmitHandler<UserFormInputs> = async (data) => {
      console.log("[AddUserModal] Submitting data:", data);
 
-     // Check if the user is trying to assign a role they aren't allowed to.
+     // ... (Permission checks remain the same) ...
      if (!assignableRoles.includes(data.role)) {
-        // This is fine *only* if they are editing themselves and keeping their
-        // current (unassignable) role.
         const isEditingSelfWithSameRole = isEditingSelf && editingUser && editingUser.role === data.role;
-
         if (!isEditingSelfWithSameRole) {
              setSubmissionError(`You do not have permission to assign the role '${data.role}'.`);
              return;
@@ -100,7 +94,16 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUse
      }
 
      setSubmissionError(null);
-     const success = await onAddUser(data, editingUser?.id);
+     
+     // --- (MODIFICATION) ---
+     // Clean up the data to send to the API
+     const apiData: any = { ...data };
+     if (isEditing && !apiData.password) {
+       delete apiData.password; // Don't send an empty password
+     }
+     // ----------------------
+
+     const success = await onAddUser(apiData, editingUser?.id);
      if (success) onClose();
      else setSubmissionError('An account with this email already exists or another error occurred.');
   };
@@ -123,7 +126,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUse
                 <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                     {submissionError && <p className="bg-red-100 text-red-700 p-3 rounded-lg text-sm">{submissionError}</p>}
 
-                    {/* Fields: Name, Email, Pass, Discount */}
+                    {/* ... (Fields: Name, Email, Pass, Discount remain the same) ... */}
                     <div>
                         <label htmlFor="firstName" className={labelClasses}>First Name</label>
                         <input id="firstName" type="text" {...register('firstName', { required: 'First name is required' })} className={commonInputClasses} placeholder="John"/>
@@ -150,20 +153,13 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUse
                         {errors.discountAmount && <p className={errorTextClasses}>{errors.discountAmount.message}</p>}
                     </div>
 
-
-                    {/* Role Dropdown with Hierarchy Logic */}
+                    {/* ... (Role Dropdown remains the same) ... */}
                     <div>
                       <label htmlFor="role" className={labelClasses}>Role</label>
-                      <select
-                          id="role"
-                          {...register('role', { required: 'Role is required' })}
-                          className={commonInputClasses}
-                      >
-                        {/* Only show roles the current user can assign */}
+                      <select id="role" {...register('role', { required: 'Role is required' })} className={commonInputClasses}>
                         {assignableRoles.map(role => (
                             <option key={role} value={role}>{role}</option>
                         ))}
-                        {/* If editing a user whose role is normally unassignable (i.e., YOURSELF), show it as an option */}
                         {isEditingSelf && editingUser && !assignableRoles.includes(editingUser.role) && (
                             <option key={editingUser.role} value={editingUser.role}>{editingUser.role} (Current)</option>
                         )}
@@ -171,12 +167,28 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, editingUse
                       {errors.role && <p className={errorTextClasses}>{errors.role.message}</p>}
                     </div>
 
-                    {/* Conditional: Referral Code */}
+                    {/* --- (NEW) Account Status Toggle --- */}
+                    <div>
+                      <label htmlFor="isActive" className={labelClasses}>Account Status</label>
+                      <select
+                          id="isActive"
+                          {...register('isActive', { setValueAs: (v) => v === 'true' })}
+                          className={commonInputClasses}
+                          // You cannot deactivate yourself
+                          disabled={isEditingSelf}
+                      >
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                      </select>
+                      {isEditingSelf && <p className="text-xs text-gray-500 mt-1">You cannot change your own account status.</p>}
+                    </div>
+                    {/* ---------------------------------- */}
+
+
                     {isEditing && (
                         <div>
                          <label htmlFor="referralCode" className={labelClasses}>Referral Code</label>
                          <input type="text" id="referralCode" {...register('referralCode')} className={commonInputClasses} placeholder="Auto-generated or Manual" />
-                         {/* Optional validation */}
                         </div>
                     )}
                 </div>

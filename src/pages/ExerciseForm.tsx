@@ -103,11 +103,8 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
 
   // --- FIX: Implemented handleRemoveTask ---
   const handleRemoveTask = (taskId: string) => {
-    // --- CHANGE: Add permission check for Editor ---
-    if (currentUserRole === 'Editor') {
-        alert("You do not have permission to remove tasks.");
-        return;
-    }
+    // --- CHANGE: Removed permission check for Editor ---
+    // (Editors can now remove tasks)
     // -------------------------------------------
     if (window.confirm("Are you sure you want to remove this task?")) {
       setCurrentTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
@@ -178,19 +175,9 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
   const commonInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
   const labelClasses = "block text-sm font-medium text-gray-700";
 
-  // --- CHANGE: Add permission check ---
+  // --- CHANGE: Removed permission check ---
   // If user is 'Editor' AND is not editing (i.e., is in 'create' mode)
-  if (!isEditing && currentUserRole === 'Editor') {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-md text-center">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Permission Denied</h1>
-        <p className="text-gray-700">You do not have permission to create new exercises.</p>
-        <button type="button" onClick={onClose} className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-             &larr; Back to List
-        </button>
-      </div>
-    );
-  }
+  // This block has been removed to allow Editors to create exercises.
   // ------------------------------------
 
   return (
@@ -317,13 +304,11 @@ const ExerciseForm: React.FC<ExerciseFormProps> = ({ exerciseToEdit, moduleType,
        <div className="bg-white p-6 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-4 border-b pb-3">
           <h2 className="text-xl font-semibold text-gray-800">Tasks Included</h2>
-          {/* --- CHANGE: Add permission check for Editor --- */}
-          {(currentUserRole === 'SuperAdmin' || currentUserRole === 'Admin') && (
-            <button type="button" onClick={() => handleOpenTaskModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
-              <PlusIcon className="mr-2 w-4 h-4" />
-              Add New Task
-            </button>
-          )}
+          {/* --- CHANGE: Removed permission check. Editors can now see this button. --- */}
+          <button type="button" onClick={() => handleOpenTaskModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+            <PlusIcon className="mr-2 w-4 h-4" />
+            Add New Task
+          </button>
           {/* ------------------------------------------- */}
         </div>
         <div className="space-y-4">

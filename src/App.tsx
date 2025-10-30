@@ -13,11 +13,9 @@ import { useAuth } from './hooks/useAuth';
 // Import User type for passing down props
 import { Exercise, ExerciseType, User, PortalUserRole } from './types';
 
-// Page type includes modules
-type Page = 'Dashboard' | 'Users Management' | 'Subscriptions' | 'Exercises Management' | 'Reading' | 'Writing' | 'Listening' | 'Speaking';
-
-// --- LoggedInApp receives currentUser ---
+// ... (LoggedInApp component remains the same) ...
 const LoggedInApp: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+  // ... (all logic inside LoggedInApp is unchanged) ...
   const [activePage, setActivePage] = useState<Page>('Dashboard');
   const [exerciseToEdit, setExerciseToEdit] = useState<Exercise | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -107,28 +105,38 @@ const LoggedInApp: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
 
 const App: React.FC = () => {
-    const { currentUser } = useAuth(); // currentUser includes role
+    // Get isLoading state from useAuth
+    const { currentUser, isLoading } = useAuth(); // currentUser includes role
+
+    // Show a loading screen while checking auth
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-xl font-semibold">Loading...</p>
+        </div>
+      );
+    }
 
     if (!currentUser) {
         return <LoginPage />;
     }
 
-    // --- CHANGE: Handle all 4 roles from types.ts ---
+    // --- (MODIFICATION) ---
+    // The 'User' role is now blocked by the API, but we
+    // keep this logic as a fallback.
     if (currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin' || currentUser.role === 'Editor') {
         // SuperAdmins, Admins, and Editors see the full admin interface
         return <LoggedInApp currentUser={currentUser} />;
     } else if (currentUser.role === 'User') {
-        // 'User' role sees the "solve exercise" view
+        // This view is for students (who shouldn't be here)
+        // We will show the EditorTaskView for now, but login should fail
         return <EditorTaskView />;
     }
     // ---------------------------------------------
 
     // Fallback for unexpected roles
     console.error("Access Denied: Unexpected user role for portal access:", currentUser.role);
-    // You might want a dedicated "Access Denied" component here
-    // For now, redirecting to login.
     return <LoginPage />;
 }
 
 export default App;
-

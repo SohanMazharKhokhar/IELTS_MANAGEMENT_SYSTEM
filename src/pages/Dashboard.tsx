@@ -9,13 +9,17 @@ import { AppUser, Exercise } from '../types';
 import { getActivityLog } from '../utils/activityLogger';
 // Import useAuth to get the current user for "Active Now"
 import { useAuth } from '../hooks/useAuth';
+// --- (NEW) Import the API service ---
+import { apiFetch } from '../utils/apiService';
 
-// Keys used for localStorage (ensure these match keys used elsewhere)
-const USERS_STORAGE_KEY = 'ielts_app_users';
+
+// Keys used for localStorage (only for exercises now)
+// const USERS_STORAGE_KEY = 'ielts_app_users'; // <-- We no longer use this
 const EXERCISES_STORAGE_KEY = 'ielts_saved_exercises';
 
-// --- StatCard Component ---
+// --- StatCard Component (Unchanged) ---
 const StatCard: React.FC<{ title: string; value: string; change: string; changeType: 'increase' | 'neutral'; icon: React.ElementType }> = ({ title, value, change, changeType, icon: Icon }) => {
+  // ... (Component code remains the same) ...
   const isIncrease = changeType === 'increase';
   return (
     <div className="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
@@ -42,51 +46,64 @@ const Dashboard: React.FC = () => {
   const [activities, setActivities] = useState<{ timestamp: string; message: string; }[]>([]);
   const { currentUser } = useAuth(); // Get current user info
 
+  // --- (MODIFIED) useEffect to fetch data ---
   useEffect(() => {
-    // --- Load Users with Error Handling ---
-    try {
-      const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-      if (storedUsers) {
-        const users: AppUser[] = JSON.parse(storedUsers);
-        // Ensure it's an array before setting length
-        if (Array.isArray(users)) {
-            setTotalUsers(users.length);
+    
+    // --- (NEW) Function to fetch users from the API ---
+    const fetchUsers = async () => {
+      try {
+        const response = await apiFetch('/users', { method: 'GET' });
+        if (!response.ok) throw new Error('Failed to fetch users');
+        
+        const data = await response.json();
+        
+        // --- (ASSUMPTION) ---
+        // We assume the API returns { users: [...] }
+        // Change 'data.users' if your API has a different key
+        const usersArray = data.users; 
+        
+        if (Array.isArray(usersArray)) {
+          setTotalUsers(usersArray.length);
         } else {
-            console.warn("[Dashboard] Stored user data is not an array.");
-            setTotalUsers(0); // Set to 0 if data is invalid
+          console.warn("[Dashboard] Fetched user data is not an array.");
+          setTotalUsers(0);
         }
-      } else {
-          setTotalUsers(0); // Set to 0 if no data found
+      } catch (error) {
+        console.error("[Dashboard] Error fetching users from API:", error);
+        setTotalUsers(0);
       }
-    } catch (error) {
-      console.error("[Dashboard] Error parsing users from localStorage:", error);
-      setTotalUsers(0); // Set to 0 on error
-    }
+    };
+    
+    // --- (OLD) Logic for exercises (still using localStorage) ---
+    // We will update this when you provide the exercise API endpoints
+    const fetchExercises = () => {
+        try {
+          const storedExercises = localStorage.getItem(EXERCISES_STORAGE_KEY);
+          if (storedExercises) {
+            const exercises: Exercise[] = JSON.parse(storedExercises);
+             if (Array.isArray(exercises)) {
+                setTotalExercises(exercises.length);
+             } else {
+                 console.warn("[Dashboard] Stored exercise data is not an array.");
+                 setTotalExercises(0);
+             }
+          } else {
+              setTotalExercises(0);
+          }
+        } catch (error) {
+          console.error("[Dashboard] Error parsing exercises from localStorage:", error);
+          setTotalExercises(0);
+        }
+    };
 
-    // --- Load Exercises with Error Handling ---
-    try {
-      const storedExercises = localStorage.getItem(EXERCISES_STORAGE_KEY);
-      if (storedExercises) {
-        const exercises: Exercise[] = JSON.parse(storedExercises);
-         // Ensure it's an array before setting length
-         if (Array.isArray(exercises)) {
-            setTotalExercises(exercises.length);
-         } else {
-             console.warn("[Dashboard] Stored exercise data is not an array.");
-             setTotalExercises(0); // Set to 0 if data is invalid
-         }
-      } else {
-          setTotalExercises(0); // Set to 0 if no data found
-      }
-    } catch (error) {
-      console.error("[Dashboard] Error parsing exercises from localStorage:", error);
-      setTotalExercises(0); // Set to 0 on error
-    }
-
-    // --- Load Activity Log ---
+    // --- (NEW) Call the fetch functions ---
+    fetchUsers();
+    fetchExercises(); // This still uses localStorage
     setActivities(getActivityLog());
 
   }, []); // Empty dependency array means this runs once on mount
+  // --- (END OF MODIFICATION) ---
+
 
   // --- Quick Stats (Now reflects dynamic data where available) ---
   const activeNowValue = currentUser ? '1 User' : '0 Users';
@@ -106,7 +123,7 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
         <StatCard
           title="Total Users"
-          value={totalUsers.toString()} // Use dynamic count
+          value={totalUsers.toString()} // Will now be correct
           change="Live Count"
           changeType="neutral"
           icon={UsersIcon}
@@ -120,7 +137,7 @@ const Dashboard: React.FC = () => {
         />
          <StatCard
           title="Total Exercises"
-          value={totalExercises.toString()} // Use dynamic count
+          value={totalExercises.toString()} // (Still from localStorage)
           change="Live Count"
           changeType="neutral"
           icon={BookOpenIcon}
@@ -134,7 +151,7 @@ const Dashboard: React.FC = () => {
         />
       </div>
 
-      {/* --- Dynamic Sections --- */}
+      {/* --- Dynamic Sections (Unchanged) --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
         {/* Recent Activity Section */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
